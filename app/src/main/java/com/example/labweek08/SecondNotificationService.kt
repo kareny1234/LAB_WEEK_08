@@ -1,6 +1,5 @@
 package com.example.labweek08
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
@@ -8,31 +7,28 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.CountDownTimer
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.MutableLiveData
 
-class NotificationService : Service() {
+class SecondNotificationService : Service() {
 
     private lateinit var notificationManager: NotificationManager
     private lateinit var notificationBuilder: NotificationCompat.Builder
     private lateinit var id: String
-    private lateinit var countDownTimer: CountDownTimer
+    private lateinit var timer: CountDownTimer
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        id = intent?.getStringExtra(MainActivity.EXTRA_ID) ?: "000"
+        id = intent?.getStringExtra(MainActivity.EXTRA_ID) ?: "002"
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, "Worker Notification Channel", NotificationManager.IMPORTANCE_DEFAULT)
+            val channel = NotificationChannel(CHANNEL_ID, "Second Notification Channel", NotificationManager.IMPORTANCE_DEFAULT)
             notificationManager.createNotificationChannel(channel)
         }
 
         notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Worker Notification $id")
-            .setContentText("Starting countdown...")
+            .setContentTitle("Final Notification $id")
+            .setContentText("Starting final countdown...")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -45,40 +41,34 @@ class NotificationService : Service() {
     }
 
     private fun startCountdown() {
-        countDownTimer = object : CountDownTimer(7000, 1000) {
+        timer = object : CountDownTimer(5000, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 val seconds = millisUntilFinished / 1000
-                notificationBuilder.setContentText("Notification $id: $seconds seconds remaining")
+                notificationBuilder.setContentText("Final Notification: $seconds seconds remaining")
                 notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build())
-                Log.d("NotificationService", "Countdown: $seconds seconds left for ID: $id")
+                Log.d("SecondNotificationService", "Countdown: $seconds seconds left")
             }
 
             override fun onFinish() {
-                notificationBuilder.setContentText("Process for Notification Channel ID $id is done!")
+                notificationBuilder.setContentText("Final process for Notification Channel ID $id is done!")
                     .setOngoing(false)
                 notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build())
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    Log.d("NotificationService", "Posting LiveData with ID: $id")
-                    mutableID.postValue(id)
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }, 1000)
+                Log.d("SecondNotificationService", "Final process done for ID: $id")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
         }.start()
     }
 
     override fun onDestroy() {
-        countDownTimer.cancel()
+        timer.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?) = null
 
     companion object {
-        const val CHANNEL_ID = "Worker_Channel"
-        const val NOTIFICATION_ID = 101
-        private val mutableID = MutableLiveData<String>()
-        val trackingCompletion = mutableID
+        const val CHANNEL_ID = "SecondWorker_Channel"
+        const val NOTIFICATION_ID = 102
     }
 }
