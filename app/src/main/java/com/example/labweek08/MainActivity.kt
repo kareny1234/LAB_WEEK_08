@@ -1,15 +1,19 @@
 package com.example.labweek08
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.work.Constraints
-import androidx.work.Data
-import androidx.work.NetworkType
+import androidx.lifecycle.Observer
 import androidx.work.OneTimeWorkRequest
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.labweek08.worker.FirstWorker
 import com.example.labweek08.worker.SecondWorker
@@ -17,6 +21,8 @@ import com.example.labweek08.worker.SecondWorker
 class MainActivity : AppCompatActivity() {
 
     private lateinit var workManager: WorkManager
+    private lateinit var firstRequest: OneTimeWorkRequest
+    private lateinit var secondRequest: OneTimeWorkRequest
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,47 +35,51 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        workManager = WorkManager.getInstance(this)
-
-        val networkConstraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
-        val id = "001"
-
-        val firstRequest = OneTimeWorkRequest.Builder(FirstWorker::class.java)
-            .setConstraints(networkConstraints)
-            .setInputData(getIdInputData(FirstWorker.INPUT_DATA_ID, id))
-            .build()
-
-        val secondRequest = OneTimeWorkRequest.Builder(SecondWorker::class.java)
-            .setConstraints(networkConstraints)
-            .setInputData(getIdInputData(SecondWorker.INPUT_DATA_ID, id))
-            .build()
-
-        workManager.beginWith(firstRequest)
-            .then(secondRequest)
-            .enqueue()
-
-        workManager.getWorkInfoByIdLiveData(firstRequest.id).observe(this) { info ->
-            if (info.state.isFinished) {
-                showResult("First process is done")
+        // Request notification permission (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
             }
         }
 
+        // Initialize WorkManager
+        workManager = WorkManager.getInstance(this)
+        firstRequest = OneTimeWorkRequestBuilder<FirstWorker>().build()
+        secondRequest = OneTimeWorkRequestBuilder<SecondWorker>().build()
+
+        // Chain the two workers
+        workManager.beginWith(firstRequest).then(secondRequest).enqueue()
+
+        // Observe SecondWorker completion
         workManager.getWorkInfoByIdLiveData(secondRequest.id).observe(this) { info ->
-            if (info.state.isFinished) {
-                showResult("Second process is done")
+            if (info != null && info.state.isFinished) {
+                showResult("Second worker process is done")
+                launchNotificationService()
             }
         }
     }
 
-    private fun getIdInputData(idKey: String, idValue: String) =
-        Data.Builder()
-            .putString(idKey, idValue)
-            .build()
-
     private fun showResult(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun launchNotificationService() {
+        // Observe LiveData from NotificationService
+        NotificationService.trackingCompletion.observe(this, Observer { Id ->
+            showResult("Process for Notification Channel ID $Id is done!")
+        })
+
+        // Start ForegroundService for notification countdown
+        val serviceIntent = Intent(this, NotificationService::class.java).apply {
+            putExtra(EXTRA_ID, "001")
+        }
+
+        ContextCompat.startForegroundService(this, serviceIntent)
+    }
+
+    companion object {
+        const val EXTRA_ID = "Id"
     }
 }
